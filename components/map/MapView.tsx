@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { X, Truck, Building2, MapPin, Route } from "lucide-react";
+import { X, Truck, Building2, MapPin, Route, Printer } from "lucide-react";
 import * as turf from "@turf/turf";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
@@ -65,6 +65,8 @@ export default function MapView() {
   const [popup, setPopup]                     = useState<PopupInfo | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [detailPanel, setDetailPanel]         = useState<any | null>(null);
+  const [printOpen, setPrintOpen]             = useState(false);
+  const [mapSnapshot, setMapSnapshot]         = useState<string | null>(null);
   const [layers, setLayers]                   = useState<LayerState>({
     boundary: true, routes: true, gts: true, bins: true,
   });
@@ -75,6 +77,21 @@ export default function MapView() {
 
   const toggle = (key: keyof LayerState) =>
     setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const openPrintPanel = useCallback(() => {
+    // Capture current map canvas as a PNG data URL
+    try {
+      const canvas = mapRef.current?.getCanvas();
+      if (canvas) {
+        setMapSnapshot(canvas.toDataURL("image/png"));
+      } else {
+        setMapSnapshot(null);
+      }
+    } catch {
+      setMapSnapshot(null);
+    }
+    setPrintOpen(true);
+  }, []);
 
   const zoomToBoundary = useCallback((geojson: any) => {
     if (!mapRef.current || !geojson) return;
@@ -414,7 +431,30 @@ export default function MapView() {
         />
       )}
       <LayerControls layers={layers} onToggle={toggle} />
-      <PrintPanel uc={uc} vehicles={vehicles} gts={gts} />
+
+      {/* Floating Print Report button */}
+      <motion.button
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={openPrintPanel}
+        className="absolute bottom-6 right-16 z-10 bg-card/90 backdrop-blur-md border border-border rounded-2xl px-4 py-3 shadow-xl flex items-center gap-2 hover:bg-accent transition-colors"
+      >
+        <Printer className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium">Print Report</span>
+      </motion.button>
+
+      <PrintPanel
+        uc={uc}
+        vehicles={vehicles}
+        gts={gts}
+        bins={bins}
+        mapSnapshot={mapSnapshot}
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+      />
 
       {/* UC Detail Panel — slides in from right */}
       <AnimatePresence>
@@ -578,7 +618,14 @@ export default function MapView() {
 
               {/* Footer */}
               <div className="p-3 border-t border-border shrink-0">
-                <button className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity">
+                <button
+                  onClick={() => {
+                    setDetailPanel(null);
+                    openPrintPanel();
+                  }}
+                  className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-3.5 h-3.5" />
                   Print UC Report
                 </button>
               </div>

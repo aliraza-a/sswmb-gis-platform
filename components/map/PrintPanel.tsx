@@ -1,12 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Printer,
   X,
@@ -15,31 +13,57 @@ import {
   Building,
   MapPin,
   CheckSquare,
+  Trash2,
 } from "lucide-react";
 
 interface PrintPanelProps {
   uc: any;
   vehicles: any[];
   gts: any[];
+  bins: any[];
+  mapSnapshot?: string | null; // base64 data URL
+  open: boolean;
+  onClose: () => void;
 }
 
+const VEHICLE_COLORS: Record<string, string> = {
+  forland:     "#3B82F6",
+  three_wheel: "#A855F7",
+  mini_tipper: "#10B981",
+  compactor:   "#F97316",
+};
+const getVehicleColor = (type: string) =>
+  VEHICLE_COLORS[type?.toLowerCase()] ?? "#F59E0B";
+
 const sections = [
-  { key: "uc_info", label: "UC Information", icon: FileText },
-  { key: "vehicles", label: "Vehicle List", icon: Truck },
-  { key: "gts", label: "GTS / Compactors", icon: Building },
-  { key: "map", label: "Map Snapshot", icon: MapPin },
-  { key: "checklist", label: "Field Checklist", icon: CheckSquare },
+  { key: "uc_info",  label: "UC Information",     icon: FileText    },
+  { key: "map",      label: "Map Snapshot",        icon: MapPin      },
+  { key: "vehicles", label: "Vehicle List",        icon: Truck       },
+  { key: "gts",      label: "GTS / Compactors",    icon: Building    },
+  { key: "bins",     label: "Bin Locations",       icon: Trash2      },
+  { key: "checklist",label: "Field Checklist",     icon: CheckSquare },
 ];
 
-export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
-  const [open, setOpen] = useState(false);
+export default function PrintPanel({
+  uc, vehicles, gts, bins, mapSnapshot, open, onClose,
+}: PrintPanelProps) {
   const [included, setIncluded] = useState<Record<string, boolean>>({
-    uc_info: true,
-    vehicles: true,
-    gts: true,
-    map: true,
+    uc_info:   true,
+    map:       true,
+    vehicles:  true,
+    gts:       true,
+    bins:      true,
     checklist: false,
   });
+
+  // If no snapshot available, auto-disable map section
+  useEffect(() => {
+    if (!mapSnapshot) {
+      setIncluded(prev => ({ ...prev, map: false }));
+    } else {
+      setIncluded(prev => ({ ...prev, map: true }));
+    }
+  }, [mapSnapshot]);
 
   const toggle = (key: string) =>
     setIncluded((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -48,22 +72,13 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
     window.print();
   };
 
+  // Build a deduplicated list of vehicle types present
+  const vehicleTypes = Array.from(
+    new Set(vehicles.map(v => v.vehicle_type).filter(Boolean))
+  );
+
   return (
     <>
-      {/* Trigger button — floating on map */}
-      <motion.button
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setOpen(true)}
-        className="absolute bottom-6 right-16 z-10 bg-card/90 backdrop-blur-md border border-border rounded-2xl px-4 py-3 shadow-xl flex items-center gap-2 hover:bg-accent transition-colors"
-      >
-        <Printer className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Print Report</span>
-      </motion.button>
-
       {/* Print Panel Drawer */}
       <AnimatePresence>
         {open && (
@@ -73,7 +88,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setOpen(false)}
+              onClick={onClose}
               className="absolute inset-0 z-20 bg-black/40 backdrop-blur-sm"
             />
 
@@ -96,11 +111,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                     Customize what appears on the printout
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(false)}
-                >
+                <Button variant="ghost" size="icon" onClick={onClose}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -118,7 +129,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                     {uc?.zone}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {vehicles.length} vehicles · {gts.length} GTS
+                    {vehicles.length} vehicles · {gts.length} GTS · {bins.length} bins
                   </span>
                 </div>
               </div>
@@ -129,41 +140,52 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                   Include in printout
                 </div>
                 <div className="space-y-3">
-                  {sections.map((s) => (
-                    <motion.div
-                      key={s.key}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => toggle(s.key)}
-                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
-                        included[s.key]
-                          ? "border-blue-500/30 bg-blue-500/5"
-                          : "border-border bg-transparent"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            included[s.key] ? "bg-blue-500/20" : "bg-muted"
-                          }`}
-                        >
-                          <s.icon
-                            className={`w-4 h-4 ${
-                              included[s.key]
-                                ? "text-blue-400"
-                                : "text-muted-foreground"
+                  {sections.map((s) => {
+                    const disabled = s.key === "map" && !mapSnapshot;
+                    return (
+                      <motion.div
+                        key={s.key}
+                        whileTap={disabled ? {} : { scale: 0.98 }}
+                        onClick={() => !disabled && toggle(s.key)}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                          disabled
+                            ? "border-border/30 opacity-40 cursor-not-allowed"
+                            : included[s.key]
+                              ? "border-blue-500/30 bg-blue-500/5 cursor-pointer"
+                              : "border-border bg-transparent cursor-pointer"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              included[s.key] && !disabled ? "bg-blue-500/20" : "bg-muted"
                             }`}
-                          />
+                          >
+                            <s.icon
+                              className={`w-4 h-4 ${
+                                included[s.key] && !disabled
+                                  ? "text-blue-400"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">{s.label}</span>
+                            {s.key === "map" && !mapSnapshot && (
+                              <div className="text-[10px] text-muted-foreground">Snapshot unavailable</div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-sm font-medium">{s.label}</span>
-                      </div>
-                      <Switch
-                        checked={included[s.key]}
-                        onCheckedChange={() => toggle(s.key)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="scale-75"
-                      />
-                    </motion.div>
-                  ))}
+                        <Switch
+                          checked={included[s.key] && !disabled}
+                          onCheckedChange={() => !disabled && toggle(s.key)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="scale-75"
+                          disabled={disabled}
+                        />
+                      </motion.div>
+                    );
+                  })}
                 </div>
 
                 <Separator className="my-5" />
@@ -179,12 +201,16 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                       <span className="text-foreground">1 section</span>
                     </div>
                   )}
+                  {included.map && mapSnapshot && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Map Snapshot</span>
+                      <span className="text-foreground">1 page</span>
+                    </div>
+                  )}
                   {included.vehicles && (
                     <div className="flex justify-between text-muted-foreground">
                       <span>Vehicles</span>
-                      <span className="text-foreground">
-                        {vehicles.length} rows
-                      </span>
+                      <span className="text-foreground">{vehicles.length} rows</span>
                     </div>
                   )}
                   {included.gts && (
@@ -193,10 +219,10 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                       <span className="text-foreground">{gts.length} rows</span>
                     </div>
                   )}
-                  {included.map && (
+                  {included.bins && (
                     <div className="flex justify-between text-muted-foreground">
-                      <span>Map Snapshot</span>
-                      <span className="text-foreground">1 page</span>
+                      <span>Bin Locations</span>
+                      <span className="text-foreground">{bins.length} rows</span>
                     </div>
                   )}
                   {included.checklist && (
@@ -268,14 +294,50 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                     ["Status", uc.status?.replace("_", " ")],
                     ["Total Vehicles", vehicles.length],
                     ["GTS Units", gts.length],
+                    ["Bin Locations", bins.length],
                   ].map(([k, v]) => (
-                    <tr key={k} className="border border-gray-200">
+                    <tr key={String(k)} className="border border-gray-200">
                       <td className="p-2 bg-gray-50 font-medium w-40">{k}</td>
                       <td className="p-2">{v}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Map Snapshot + Legend */}
+          {included.map && mapSnapshot && (
+            <div className="mb-6">
+              <div className="text-base font-bold mb-3">Map — UC Boundary</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={mapSnapshot}
+                alt="UC Map Snapshot"
+                className="w-full rounded border border-gray-200"
+                style={{ maxHeight: 400, objectFit: "cover" }}
+              />
+              {/* Legend */}
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full inline-block" style={{ background: "#10B981" }} />
+                  Bin Location
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full inline-block" style={{ background: "#F97316" }} />
+                  GTS / Compactor
+                </div>
+                {vehicleTypes.map(type => (
+                  <div key={type} className="flex items-center gap-1.5">
+                    <span className="inline-block w-6 border-t-2" style={{ borderColor: getVehicleColor(type) }} />
+                    {type?.replace("_", " ")}
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-6 border-t-2 border-dashed border-yellow-500" />
+                  UC Boundary
+                </div>
+              </div>
             </div>
           )}
 
@@ -286,7 +348,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-800 text-white">
-                    {["Reg Number", "Type", "Driver", "Phone", "Shift"].map(
+                    {["#", "Reg Number", "Type", "Driver", "Phone", "Shift"].map(
                       (h) => (
                         <th key={h} className="p-2 text-left font-medium">
                           {h}
@@ -301,7 +363,12 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                       key={v.id}
                       className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
+                      <td className="p-2 border border-gray-200 text-gray-400 text-xs">{i + 1}</td>
                       <td className="p-2 border border-gray-200 font-mono">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
+                          style={{ background: getVehicleColor(v.vehicle_type) }}
+                        />
                         {v.reg_number}
                       </td>
                       <td className="p-2 border border-gray-200 capitalize">
@@ -333,6 +400,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                 <thead>
                   <tr className="bg-gray-800 text-white">
                     {[
+                      "#",
                       "Reg Number",
                       "Type",
                       "Capacity",
@@ -351,6 +419,7 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                       key={g.id}
                       className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
                     >
+                      <td className="p-2 border border-gray-200 text-gray-400 text-xs">{i + 1}</td>
                       <td className="p-2 border border-gray-200 font-mono">
                         {g.reg_number}
                       </td>
@@ -365,6 +434,48 @@ export default function PrintPanel({ uc, vehicles, gts }: PrintPanelProps) {
                       </td>
                       <td className="p-2 border border-gray-200">
                         {g.driver_name || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Bins */}
+          {included.bins && bins.length > 0 && (
+            <div className="mb-6">
+              <div className="text-base font-bold mb-3">Bin Locations</div>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-800 text-white">
+                    {["#", "Bin Type", "Latitude", "Longitude", "Notes"].map(
+                      (h) => (
+                        <th key={h} className="p-2 text-left font-medium">
+                          {h}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bins.map((b, i) => (
+                    <tr
+                      key={b.id}
+                      className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                    >
+                      <td className="p-2 border border-gray-200 text-gray-400 text-xs">{i + 1}</td>
+                      <td className="p-2 border border-gray-200 capitalize">
+                        {b.bin_type || "Waste Bin"}
+                      </td>
+                      <td className="p-2 border border-gray-200 font-mono text-xs">
+                        {b.latitude?.toFixed(6) ?? "—"}
+                      </td>
+                      <td className="p-2 border border-gray-200 font-mono text-xs">
+                        {b.longitude?.toFixed(6) ?? "—"}
+                      </td>
+                      <td className="p-2 border border-gray-200 text-gray-500">
+                        {b.notes || "—"}
                       </td>
                     </tr>
                   ))}
