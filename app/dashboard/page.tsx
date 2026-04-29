@@ -1,8 +1,9 @@
-import Sidebar from "@/components/layout/Sidebar";
-import MobileNav from "@/components/layout/MobileNav";
-import MapView from "@/components/map/MapView";
+import { Suspense } from 'react'
+import Sidebar from '@/components/layout/Sidebar'
+import MobileNav from '@/components/layout/MobileNav'
+import MapView from '@/components/map/MapView'
 
-export default function DashboardPage() {
+function DashboardShell() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
       <Sidebar />
@@ -11,5 +12,17 @@ export default function DashboardPage() {
       </main>
       <MobileNav />
     </div>
-  );
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-muted-foreground text-sm">
+        Loading dashboard...
+      </div>
+    }>
+      <DashboardShell />
+    </Suspense>
+  )
 }
