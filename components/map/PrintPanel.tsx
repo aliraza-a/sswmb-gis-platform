@@ -39,7 +39,7 @@ const sections = [
   { key: "uc_info",  label: "UC Information",     icon: FileText    },
   { key: "map",      label: "Map Snapshot",        icon: MapPin      },
   { key: "vehicles", label: "Vehicle List",        icon: Truck       },
-  { key: "gts",      label: "GTS / Compactors",    icon: Building    },
+  { key: "gts",      label: "Compactors",    icon: Building    },
   { key: "bins",     label: "Bin Locations",       icon: Trash2      },
   { key: "checklist",label: "Field Checklist",     icon: CheckSquare },
 ];
@@ -129,7 +129,7 @@ export default function PrintPanel({
                     {uc?.zone}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {vehicles.length} vehicles · {gts.length} GTS · {bins.length} bins
+                    {vehicles.length} vehicles · {gts.length} compactors · {bins.length} bins
                   </span>
                 </div>
               </div>
@@ -215,7 +215,7 @@ export default function PrintPanel({
                   )}
                   {included.gts && (
                     <div className="flex justify-between text-muted-foreground">
-                      <span>GTS / Compactors</span>
+                      <span>Compactors</span>
                       <span className="text-foreground">{gts.length} rows</span>
                     </div>
                   )}
@@ -293,7 +293,7 @@ export default function PrintPanel({
                     ["Supervisor", uc.supervisor_name || "—"],
                     ["Status", uc.status?.replace("_", " ")],
                     ["Total Vehicles", vehicles.length],
-                    ["GTS Units", gts.length],
+                    ["Compactor Units", gts.length],
                     ["Bin Locations", bins.length],
                   ].map(([k, v]) => (
                     <tr key={String(k)} className="border border-gray-200">
@@ -325,7 +325,7 @@ export default function PrintPanel({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full inline-block" style={{ background: "#F97316" }} />
-                  GTS / Compactor
+                  Compactor Station
                 </div>
                 {vehicleTypes.map(type => (
                   <div key={type} className="flex items-center gap-1.5">
@@ -394,7 +394,7 @@ export default function PrintPanel({
           {included.gts && gts.length > 0 && (
             <div className="mb-6">
               <div className="text-base font-bold mb-3">
-                GTS / Compactor Units
+                Compactor Units
               </div>
               <table className="w-full text-sm border-collapse">
                 <thead>
@@ -496,7 +496,7 @@ export default function PrintPanel({
                     "UC boundary verified on ground",
                     "All vehicle routes confirmed with supervisor",
                     "Bin locations marked and counted",
-                    "GTS / dumping point location confirmed",
+                    "Compactor / dumping point location confirmed",
                     "Driver details verified",
                     "Shift schedule confirmed",
                   ].map((item, i) => (

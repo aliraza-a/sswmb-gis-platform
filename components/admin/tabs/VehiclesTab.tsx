@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, MapPin } from "lucide-react";
+import BoundaryMapInput from "../BoundaryMapInput";
 
 const typeColors: Record<string, string> = {
   forland: "border-blue-500/40 text-blue-400",
@@ -34,12 +35,14 @@ const emptyForm = {
   uc_id: "",
   reg_number: "",
   vehicle_type: "forland",
+  area_name: "",
   driver_name: "",
   driver_phone: "",
   driver_cnic: "",
   helper_name: "",
   helper_cnic: "",
   shift: "",
+  boundary_geojson: null as any,
 };
 
 export default function VehiclesTab() {
@@ -75,20 +78,33 @@ export default function VehiclesTab() {
     setForm(emptyForm);
     setOpen(true);
   };
-  const openEdit = (v: any) => {
+
+  const openEdit = async (v: any) => {
     setEditing(v);
     setForm({
       uc_id: v.uc_id,
       reg_number: v.reg_number,
       vehicle_type: v.vehicle_type,
+      area_name: v.area_name || "",
       driver_name: v.driver_name || "",
       driver_phone: v.driver_phone || "",
       driver_cnic: v.driver_cnic || "",
       helper_name: v.helper_name || "",
       helper_cnic: v.helper_cnic || "",
       shift: v.shift || "",
+      boundary_geojson: null,
     });
     setOpen(true);
+
+    // Fetch boundary
+    const { data: bData } = await supabase
+      .from("vehicle_boundary")
+      .select("geojson")
+      .eq("vehicle_id", v.id)
+      .single();
+    if (bData) {
+      setForm(p => ({ ...p, boundary_geojson: bData.geojson }));
+    }
   };
 
   const save = async () => {
@@ -101,6 +117,7 @@ export default function VehiclesTab() {
       uc_id: form.uc_id,
       reg_number: form.reg_number,
       vehicle_type: form.vehicle_type,
+      area_name: form.area_name || null,
       driver_name: form.driver_name || null,
       driver_phone: form.driver_phone || null,
       driver_cnic: form.driver_cnic || null,
@@ -108,11 +125,14 @@ export default function VehiclesTab() {
       helper_cnic: form.helper_cnic || null,
       shift: form.shift || null,
     };
+
+    let vehicleId = editing?.id;
+
     if (editing) {
       const { error } = await supabase
         .from("vehicle")
         .update(payload)
-        .eq("id", editing.id);
+        .eq("id", vehicleId);
       if (error) {
         toast.error("Failed to update");
         setSaving(false);
@@ -120,20 +140,32 @@ export default function VehiclesTab() {
       }
       toast.success(`${form.reg_number} updated`);
     } else {
-      const { error } = await supabase.from("vehicle").insert(payload);
-      if (error) {
-        toast.error(error.message);
+      const { data, error } = await supabase.from("vehicle").insert(payload).select().single();
+      if (error || !data) {
+        toast.error(error?.message || "Failed to add vehicle");
         setSaving(false);
         return;
       }
+      vehicleId = data.id;
       toast.success(`${form.reg_number} added`);
     }
+
+    // Save boundary
+    if (form.boundary_geojson && vehicleId) {
+      await supabase.from("vehicle_boundary").upsert({
+        vehicle_id: vehicleId,
+        geojson: form.boundary_geojson
+      }, { onConflict: "vehicle_id" });
+    } else if (!form.boundary_geojson && vehicleId) {
+      await supabase.from("vehicle_boundary").delete().eq("vehicle_id", vehicleId);
+    }
+
     setSaving(false);
     setOpen(false);
     fetchAll();
   };
 
-  const f = (key: string, val: string) =>
+  const f = (key: string, val: any) =>
     setForm((p) => ({ ...p, [key]: val }));
 
   const filtered =
@@ -145,9 +177,9 @@ export default function VehiclesTab() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold">Vehicles</h1>
+          <h1 className="text-2xl font-bold">Vehicles & Areas</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manage all collection vehicles across UCs
+            Manage fleet and their specific collection boundaries
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -156,119 +188,107 @@ export default function VehiclesTab() {
               <Plus className="w-4 h-4" /> Add Vehicle
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-5xl w-[95vw] max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editing ? `Edit ${editing.reg_number}` : "Add Vehicle"}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 mt-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Union Council</Label>
-                  <Select
-                    value={form.uc_id}
-                    onValueChange={(v) => f("uc_id", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select UC" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ucs.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          UC-{u.uc_number} {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+              <div className="space-y-4 md:col-span-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Union Council</Label>
+                    <Select
+                      value={form.uc_id}
+                      onValueChange={(v) => f("uc_id", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select UC" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ucs.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            UC-{u.uc_number} {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vehicle Type</Label>
+                    <Select
+                      value={form.vehicle_type}
+                      onValueChange={(v) => f("vehicle_type", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="forland">Forland</SelectItem>
+                        <SelectItem value="three_wheel">Three Wheel</SelectItem>
+                        <SelectItem value="mini_tipper">Mini Tipper</SelectItem>
+                        <SelectItem value="compactor">Compactor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Vehicle Type</Label>
-                  <Select
-                    value={form.vehicle_type}
-                    onValueChange={(v) => f("vehicle_type", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="forland">Forland</SelectItem>
-                      <SelectItem value="three_wheel">Three Wheel</SelectItem>
-                      <SelectItem value="mini_tipper">Mini Tipper</SelectItem>
-                      <SelectItem value="compactor">Compactor</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Registration Number</Label>
+                  <Input
+                    value={form.reg_number}
+                    onChange={(e) => f("reg_number", e.target.value)}
+                    placeholder="e.g. GS-B-051"
+                  />
                 </div>
+                <div className="space-y-2">
+                  <Label>Area Name</Label>
+                  <Input
+                    value={form.area_name}
+                    onChange={(e) => f("area_name", e.target.value)}
+                    placeholder="e.g. Lasi Para Block-A"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Driver Name</Label>
+                    <Input
+                      value={form.driver_name}
+                      onChange={(e) => f("driver_name", e.target.value)}
+                      placeholder="Full name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Shift</Label>
+                    <Input
+                      value={form.shift}
+                      onChange={(e) => f("shift", e.target.value)}
+                      placeholder="Morning/Evening"
+                    />
+                  </div>
+                </div>
+                <Button className="w-full mt-4" onClick={save} disabled={saving}>
+                  {saving ? "Saving..." : editing ? "Update Vehicle" : "Add Vehicle"}
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Registration Number</Label>
-                <Input
-                  value={form.reg_number}
-                  onChange={(e) => f("reg_number", e.target.value)}
-                  placeholder="e.g. GS-B-051"
-                />
+
+              <div className="md:col-span-2 flex flex-col space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-blue-500" />
+                  Area Boundary (Polygon)
+                </Label>
+                <div className="flex-1 min-h-[400px] bg-muted/20 rounded-xl overflow-hidden border border-border">
+                  {open && (
+                    <BoundaryMapInput
+                      initialGeoJSON={form.boundary_geojson}
+                      onChange={(geojson) => f("boundary_geojson", geojson)}
+                    />
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Draw the specific collection area for this vehicle within the UC.
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Driver Name</Label>
-                  <Input
-                    value={form.driver_name}
-                    onChange={(e) => f("driver_name", e.target.value)}
-                    placeholder="Full name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Driver Phone</Label>
-                  <Input
-                    value={form.driver_phone}
-                    onChange={(e) => f("driver_phone", e.target.value)}
-                    placeholder="03xx-xxxxxxx"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Driver CNIC</Label>
-                  <Input
-                    value={form.driver_cnic}
-                    onChange={(e) => f("driver_cnic", e.target.value)}
-                    placeholder="xxxxx-xxxxxxx-x"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Shift</Label>
-                  <Input
-                    value={form.shift}
-                    onChange={(e) => f("shift", e.target.value)}
-                    placeholder="e.g. Morning"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Helper Name</Label>
-                  <Input
-                    value={form.helper_name}
-                    onChange={(e) => f("helper_name", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Helper CNIC</Label>
-                  <Input
-                    value={form.helper_cnic}
-                    onChange={(e) => f("helper_cnic", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-              </div>
-              <Button className="w-full" onClick={save} disabled={saving}>
-                {saving
-                  ? "Saving..."
-                  : editing
-                    ? "Update Vehicle"
-                    : "Add Vehicle"}
-              </Button>
             </div>
           </DialogContent>
         </Dialog>

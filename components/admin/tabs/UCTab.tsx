@@ -211,11 +211,20 @@ export default function UCTab() {
                 </div>
                 <div className="space-y-2">
                   <Label>Zone</Label>
-                  <Input
+                  <Select
                     value={form.zone}
-                    onChange={(e) => f("zone", e.target.value)}
-                    placeholder="e.g. Model Zone"
-                  />
+                    onValueChange={(v) => f("zone", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Zone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Model Zone">Model Zone</SelectItem>
+                      <SelectItem value="Shah Faisal Zone">Shah Faisal Zone</SelectItem>
+                      <SelectItem value="Landhi Zone">Landhi Zone</SelectItem>
+                      <SelectItem value="Korangi Zone">Korangi Zone</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

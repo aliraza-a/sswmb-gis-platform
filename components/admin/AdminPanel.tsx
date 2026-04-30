@@ -12,7 +12,7 @@ const tabs = [
   { value: "ucs", label: "Union Councils", icon: Building2 },
   { value: "vehicles", label: "Vehicles", icon: Truck },
   { value: "routes", label: "Routes", icon: Route },
-  { value: "gts", label: "GTS", icon: Layers },
+  { value: "gts", label: "Compactors", icon: Layers },
   { value: "bins", label: "Bins", icon: MapPin },
 ];
 

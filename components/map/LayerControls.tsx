@@ -19,7 +19,7 @@ interface Props {
 const layerConfig = [
   { key: "boundary" as const, label: "UC Boundary", color: "bg-blue-500" },
   { key: "routes" as const, label: "Routes", color: "bg-amber-500" },
-  { key: "gts" as const, label: "GTS / Compactors", color: "bg-orange-500" },
+  { key: "gts" as const, label: "Compactors", color: "bg-orange-500" },
   { key: "bins" as const, label: "Bins", color: "bg-emerald-500" },
 ];
 
