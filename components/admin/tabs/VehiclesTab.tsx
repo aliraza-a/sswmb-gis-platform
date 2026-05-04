@@ -48,6 +48,7 @@ const emptyForm = {
 export default function VehiclesTab() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [ucs, setUcs] = useState<any[]>([]);
+  const [ucBoundaries, setUcBoundaries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -57,15 +58,21 @@ export default function VehiclesTab() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: vData }, { data: uData }] = await Promise.all([
+    const [
+      { data: vData }, 
+      { data: uData },
+      { data: bData }
+    ] = await Promise.all([
       supabase
         .from("vehicle")
         .select("*, uc(uc_number, name)")
         .order("reg_number"),
       supabase.from("uc").select("id, uc_number, name").order("uc_number"),
+      supabase.from("uc_boundary").select("uc_id, geojson")
     ]);
     setVehicles(vData || []);
     setUcs(uData || []);
+    setUcBoundaries(bData || []);
     setLoading(false);
   };
 
@@ -281,6 +288,9 @@ export default function VehiclesTab() {
                   {open && (
                     <BoundaryMapInput
                       initialGeoJSON={form.boundary_geojson}
+                      referenceGeoJSON={
+                        ucBoundaries.find(b => b.uc_id === form.uc_id)?.geojson
+                      }
                       onChange={(geojson) => f("boundary_geojson", geojson)}
                     />
                   )}

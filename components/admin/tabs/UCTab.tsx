@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { logActivity } from "@/lib/audit";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, CheckCircle, Clock, Circle } from "lucide-react";
+import { Plus, Pencil, CheckCircle, Clock, Circle, Trash2, MoreHorizontal, Save, X as CloseIcon } from "lucide-react";
 
 const statusConfig: Record<
   string,
@@ -53,20 +54,28 @@ const emptyForm = {
   supervisor_phone: "",
   status: "pending",
   boundary_geojson: null as any,
+  is_draft: false,
 };
 
 export default function UCTab() {
   const [ucs, setUcs] = useState<any[]>([]);
+  const [allBoundaries, setAllBoundaries] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [overlapDetected, setOverlapDetected] = useState(false);
 
   const fetch = async () => {
     setLoading(true);
     const { data } = await supabase.from("uc").select("*").order("uc_number");
     setUcs(data || []);
+
+    const { data: bData } = await supabase.from("uc_boundary").select("uc_id, geojson");
+    if (bData) {
+      setAllBoundaries(bData);
+    }
     setLoading(false);
   };
 
@@ -90,12 +99,13 @@ export default function UCTab() {
       supervisor_phone: uc.supervisor_phone || "",
       status: uc.status,
       boundary_geojson: "",
+      is_draft: false,
     });
     setOpen(true);
 
-    const { data: bData } = await supabase.from("uc_boundary").select("geojson").eq("uc_id", uc.id).single();
-    if (bData && bData.geojson) {
-      setForm(prev => ({ ...prev, boundary_geojson: bData.geojson }));
+    const { data: bData } = await supabase.from("uc_boundary").select("geojson, is_draft").eq("uc_id", uc.id).single();
+    if (bData) {
+      setForm(prev => ({ ...prev, boundary_geojson: bData.geojson, is_draft: !!bData.is_draft }));
     }
   };
 
@@ -127,6 +137,7 @@ export default function UCTab() {
         setSaving(false);
         return;
       }
+      logActivity(`Updated metadata for UC-${form.uc_number}`, "Admin", "update", "uc", currentUcId);
       toast.success(`UC-${form.uc_number} updated`);
     } else {
       const { data, error } = await supabase.from("uc").insert(payload).select().single();
@@ -143,7 +154,8 @@ export default function UCTab() {
     if (parsedGeoJSON && currentUcId) {
       const { error: bError } = await supabase.from("uc_boundary").upsert({
         uc_id: currentUcId,
-        geojson: parsedGeoJSON
+        geojson: parsedGeoJSON,
+        is_draft: form.is_draft
       }, { onConflict: "uc_id" });
       
       // Fallback if unique constraint 'uc_id' isn't explicitly named or if upsert fails
@@ -151,7 +163,8 @@ export default function UCTab() {
         await supabase.from("uc_boundary").delete().eq("uc_id", currentUcId);
         await supabase.from("uc_boundary").insert({
           uc_id: currentUcId,
-          geojson: parsedGeoJSON
+          geojson: parsedGeoJSON,
+          is_draft: form.is_draft
         });
       }
     } else if (isEmptyGeoJSON && currentUcId) {
@@ -166,8 +179,93 @@ export default function UCTab() {
   const f = (key: string, val: string) =>
     setForm((p) => ({ ...p, [key]: val }));
 
+  // Phase 2: Selection & Inline Editing State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [inlineValue, setInlineValue] = useState("");
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => prev.length === ucs.length ? [] : ucs.map(u => u.id));
+  };
+
+  const batchUpdateStatus = async (status: string) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from("uc")
+      .update({ status })
+      .in("id", selectedIds);
+    
+    if (error) {
+      toast.error("Failed to update status");
+    } else {
+      toast.success(`Updated ${selectedIds.length} UCs`);
+      logActivity(`Bulk updated status to ${status} for ${selectedIds.length} UCs`, "Admin", "update", "uc");
+      setSelectedIds([]);
+      fetch();
+    }
+    setLoading(false);
+  };
+
+  const updateInline = async (id: string, field: string, value: any) => {
+    const { error } = await supabase
+      .from("uc")
+      .update({ [field]: value })
+      .eq("id", id);
+    
+    if (error) {
+      toast.error("Update failed");
+    } else {
+      toast.success(`Updated ${field}`);
+      logActivity(`Updated ${field} for UC-${id}`, "Admin", "update", "uc", id);
+      setUcs(prev => prev.map(u => u.id === id ? { ...u, [field]: value } : u));
+      setInlineEditingId(null);
+    }
+  };
+
   return (
-    <div>
+    <div className="relative">
+      {/* Batch Action Toolbar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-primary text-primary-foreground px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 border border-primary-foreground/10"
+          >
+            <div className="flex items-center gap-2 border-r border-primary-foreground/20 pr-6">
+              <span className="text-sm font-bold">{selectedIds.length} UCs selected</span>
+              <button onClick={() => setSelectedIds([])} className="hover:opacity-70 transition-opacity">
+                <CloseIcon className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] uppercase tracking-widest opacity-70">Batch Update Status:</span>
+              <div className="flex gap-1.5">
+                {Object.entries(statusConfig).map(([key, config]) => (
+                  <Button 
+                    key={key} 
+                    size="sm" 
+                    variant="secondary"
+                    onClick={() => batchUpdateStatus(key)}
+                    className="h-8 px-3 text-[10px] font-bold gap-1.5"
+                  >
+                    <config.icon className="w-3 h-3" />
+                    {config.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -260,7 +358,7 @@ export default function UCTab() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full mt-4" onClick={save} disabled={saving}>
+                <Button className="w-full mt-4" onClick={save} disabled={saving || overlapDetected}>
                   {saving ? "Saving..." : editing ? "Update UC" : "Add UC"}
                 </Button>
               </div>
@@ -270,10 +368,28 @@ export default function UCTab() {
                   {open && (
                     <BoundaryMapInput
                       initialGeoJSON={form.boundary_geojson}
+                      isDraft={form.is_draft}
+                      onDraftChange={(val) => setForm(p => ({ ...p, is_draft: val }))}
+                      onOverlap={(overlap) => setOverlapDetected(overlap)}
+                      referenceGeoJSON={{
+                        type: "FeatureCollection",
+                        features: (allBoundaries || [])
+                          .filter((b: any) => b.uc_id !== editing?.id)
+                          .map((b: any) => ({
+                            type: "Feature",
+                            geometry: b.geojson.type === "FeatureCollection" ? b.geojson.features[0].geometry : b.geojson,
+                            properties: {}
+                          }))
+                      }}
                       onChange={(geojson) => f("boundary_geojson", geojson)}
                     />
                   )}
                 </div>
+                {overlapDetected && (
+                  <p className="text-[10px] text-destructive font-bold animate-pulse">
+                    ⚠️ Cannot save while overlap is detected. Please adjust the boundary.
+                  </p>
+                )}
               </div>
             </div>
           </DialogContent>
@@ -306,10 +422,18 @@ export default function UCTab() {
       </div>
 
       {/* Table */}
-      <div className="border border-border rounded-2xl overflow-hidden">
+      <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
+              <th className="px-4 py-3 text-left w-10">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-border"
+                  checked={selectedIds.length === ucs.length && ucs.length > 0}
+                  onChange={toggleSelectAll}
+                />
+              </th>
               {["UC #", "Name", "Zone", "Supervisor", "Status", ""].map((h) => (
                 <th
                   key={h}
@@ -324,7 +448,7 @@ export default function UCTab() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center py-12 text-muted-foreground"
                 >
                   Loading...
@@ -333,7 +457,7 @@ export default function UCTab() {
             ) : ucs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center py-12 text-muted-foreground"
                 >
                   No UCs yet — add one above
@@ -342,14 +466,25 @@ export default function UCTab() {
             ) : (
               ucs.map((uc, i) => {
                 const s = statusConfig[uc.status] || statusConfig.pending;
+                const isSelected = selectedIds.includes(uc.id);
+                const isInlineEditing = inlineEditingId === `${uc.id}-supervisor`;
+
                 return (
                   <motion.tr
                     key={uc.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: i * 0.03 }}
-                    className="border-b border-border last:border-0 hover:bg-accent/30 transition-colors"
+                    className={`border-b border-border last:border-0 hover:bg-accent/30 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
                   >
+                    <td className="px-4 py-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-border text-primary"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(uc.id)}
+                      />
+                    </td>
                     <td className="px-4 py-3 font-bold text-blue-500">
                       UC-{uc.uc_number}
                     </td>
@@ -357,28 +492,69 @@ export default function UCTab() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {uc.zone || "—"}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {uc.supervisor_name || (
-                        <span className="text-destructive/60 text-xs">
-                          Not set
-                        </span>
+                    <td className="px-4 py-3 text-muted-foreground group">
+                      {isInlineEditing ? (
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            autoFocus
+                            className="h-8 text-xs min-w-[120px]"
+                            value={inlineValue}
+                            onChange={(e) => setInlineValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') updateInline(uc.id, 'supervisor_name', inlineValue);
+                              if (e.key === 'Escape') setInlineEditingId(null);
+                            }}
+                          />
+                          <button onClick={() => updateInline(uc.id, 'supervisor_name', inlineValue)} className="text-emerald-500 hover:opacity-70"><Save className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setInlineEditingId(null)} className="text-destructive hover:opacity-70"><CloseIcon className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span>{uc.supervisor_name || "Not set"}</span>
+                          <button 
+                            onClick={() => {
+                              setInlineEditingId(`${uc.id}-supervisor`);
+                              setInlineValue(uc.supervisor_name || "");
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded transition-all"
+                          >
+                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs gap-1 ${s.color}`}
+                      <Select
+                        value={uc.status}
+                        onValueChange={(v) => updateInline(uc.id, 'status', v)}
                       >
-                        <s.icon className="w-3 h-3" />
-                        {s.label}
-                      </Badge>
+                        <SelectTrigger className="h-8 border-none bg-transparent hover:bg-accent/50 transition-all p-0 w-auto gap-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs gap-1 cursor-pointer transition-all border-none ${s.color}`}
+                          >
+                            <s.icon className="w-3 h-3" />
+                            {s.label}
+                          </Badge>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(statusConfig).map(([key, config]) => (
+                            <SelectItem key={key} value={key}>
+                              <div className="flex items-center gap-2">
+                                <config.icon className="w-3.5 h-3.5" />
+                                {config.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="px-4 py-3">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEdit(uc)}
-                        className="gap-1"
+                        className="gap-1 hover:bg-primary hover:text-primary-foreground"
                       >
                         <Pencil className="w-3 h-3" /> Edit
                       </Button>

@@ -2,7 +2,8 @@
 import { motion } from "framer-motion";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Layers } from "lucide-react";
+import { Layers, Map as MapIcon, Image as ImageIcon } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 export type LayerState = {
   boundary: boolean;
@@ -14,6 +15,8 @@ export type LayerState = {
 interface Props {
   layers: LayerState;
   onToggle: (key: keyof LayerState) => void;
+  mapType: "streets" | "satellite";
+  onMapTypeChange: (type: "streets" | "satellite") => void;
 }
 
 const layerConfig = [
@@ -23,7 +26,7 @@ const layerConfig = [
   { key: "bins" as const, label: "Bins", color: "bg-emerald-500" },
 ];
 
-export default function LayerControls({ layers, onToggle }: Props) {
+export default function LayerControls({ layers, onToggle, mapType, onMapTypeChange }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -31,6 +34,42 @@ export default function LayerControls({ layers, onToggle }: Props) {
       transition={{ delay: 0.4 }}
       className="absolute bottom-6 left-4 z-10 bg-card/90 backdrop-blur-md border border-border rounded-2xl p-4 shadow-xl w-56"
     >
+      {/* Style Switcher */}
+      <div className="flex items-center gap-2 mb-3">
+        <MapIcon className="w-4 h-4 text-muted-foreground" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Map Type
+        </span>
+      </div>
+      
+      <div className="flex p-1 bg-accent/50 rounded-xl mb-4">
+        <button
+          onClick={() => onMapTypeChange("streets")}
+          className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+            mapType === "streets" 
+              ? "bg-card shadow-sm text-foreground" 
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <MapIcon className="w-3 h-3" />
+          Streets
+        </button>
+        <button
+          onClick={() => onMapTypeChange("satellite")}
+          className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+            mapType === "satellite" 
+              ? "bg-card shadow-sm text-foreground" 
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ImageIcon className="w-3 h-3" />
+          Satellite
+        </button>
+      </div>
+
+      <Separator className="mb-4 opacity-50" />
+
+      {/* Layer Toggles */}
       <div className="flex items-center gap-2 mb-3">
         <Layers className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -72,10 +72,13 @@ export default function MapView() {
   const [layers, setLayers]                   = useState<LayerState>({
     boundary: true, routes: true, gts: true, bins: true,
   });
+  const [mapType, setMapType]                 = useState<"streets" | "satellite">("streets");
 
-  const mapStyle = theme === "dark"
-    ? "mapbox://styles/mapbox/dark-v11"
-    : "mapbox://styles/mapbox/light-v11";
+  const mapStyle = mapType === "satellite"
+    ? "mapbox://styles/mapbox/satellite-streets-v11"
+    : theme === "dark"
+      ? "mapbox://styles/mapbox/dark-v11"
+      : "mapbox://styles/mapbox/streets-v11";
 
   const toggle = (key: keyof LayerState) =>
     setLayers(prev => ({ ...prev, [key]: !prev[key] }));
@@ -473,8 +476,8 @@ export default function MapView() {
                 "line-dasharray": [
                   "case",
                   ["boolean", ["get", "is_selected"], false],
-                  [1, 0],
-                  [2, 2]
+                  ["literal", [1, 0]],
+                  ["literal", [2, 2]]
                 ],
               }}
             />
@@ -643,7 +646,12 @@ export default function MapView() {
           status={uc.status}
         />
       )}
-      <LayerControls layers={layers} onToggle={toggle} />
+      <LayerControls 
+        layers={layers} 
+        onToggle={toggle} 
+        mapType={mapType}
+        onMapTypeChange={setMapType}
+      />
 
       {/* Floating Print Report button */}
       <motion.button
