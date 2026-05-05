@@ -35,12 +35,12 @@ export default function CommandPalette({ isOpen, onClose, onSelect }: CommandPal
         { data: vehicles }
       ] = await Promise.all([
         supabase.from("uc").select("id, uc_number, name").ilike("name", `%${query}%`),
-        supabase.from("vehicle").select("id, reg_number").ilike("reg_number", `%${query}%`)
+        supabase.from("vehicle").select("id, reg_number, status").ilike("reg_number", `%${query}%`)
       ]);
 
       const formattedResults = [
-        ...(ucs || []).map(u => ({ id: u.id, label: `UC-${u.uc_number} ${u.name}`, type: "ucs", icon: Building2 })),
-        ...(vehicles || []).map(v => ({ id: v.id, label: v.reg_number, type: "vehicles", icon: Truck }))
+        ...(ucs || []).map(u => ({ id: u.id, label: `UC-${u.uc_number} ${u.name}`, type: "ucs", icon: Building2, status: null })),
+        ...(vehicles || []).map(v => ({ id: v.id, label: v.reg_number, type: "vehicles", icon: Truck, status: v.status || "active" }))
       ];
 
       setResults(formattedResults);
@@ -97,6 +97,20 @@ export default function CommandPalette({ isOpen, onClose, onSelect }: CommandPal
                     >
                       <res.icon className="w-4 h-4 text-muted-foreground group-hover:text-primary-foreground" />
                       <span className="text-sm font-medium">{res.label}</span>
+                      {res.status && (
+                        <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          res.status === 'inactive' ? 'bg-red-500/10 text-red-400' :
+                          res.status === 'maintenance' ? 'bg-amber-500/10 text-amber-400' :
+                          'bg-emerald-500/10 text-emerald-400'
+                        }`}>
+                          <span className={`w-1 h-1 rounded-full ${
+                            res.status === 'inactive' ? 'bg-red-400' :
+                            res.status === 'maintenance' ? 'bg-amber-400' :
+                            'bg-emerald-400'
+                          }`} />
+                          {res.status}
+                        </span>
+                      )}
                       <span className="ml-auto text-[10px] uppercase tracking-widest opacity-50">{res.type}</span>
                     </button>
                   ))}

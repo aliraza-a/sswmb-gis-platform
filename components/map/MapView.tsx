@@ -641,6 +641,7 @@ export default function MapView() {
         <MapStats
           ucName={`UC-${uc.uc_number} — ${uc.name}`}
           vehicleCount={vehicles.length}
+          activeVehicleCount={vehicles.filter(v => v.status === 'active' || !v.status).length}
           compactorCount={gts.length}
           zone={uc.zone}
           status={uc.status}
@@ -804,6 +805,16 @@ export default function MapView() {
                             <span className="text-[9px] text-muted-foreground capitalize">
                               {v.vehicle_type?.replace("_", " ")}
                             </span>
+                            <div className="flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                v.status === 'inactive' ? 'bg-red-400' :
+                                v.status === 'maintenance' ? 'bg-amber-400' :
+                                'bg-emerald-400'
+                              }`} />
+                              <span className="text-[8px] text-muted-foreground/60 capitalize">
+                                {v.status || 'active'}
+                              </span>
+                            </div>
                             {hasRoute ? (
                               <Route className="w-2.5 h-2.5 text-muted-foreground/50" />
                             ) : (

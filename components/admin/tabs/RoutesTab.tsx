@@ -50,7 +50,7 @@ export default function RoutesTab() {
           .order("created_at", { ascending: false }),
         supabase
           .from("vehicle")
-          .select("id, reg_number, vehicle_type, uc(uc_number)")
+          .select("id, reg_number, vehicle_type, status, uc(uc_number)")
           .order("reg_number"),
         supabase.from("uc").select("id, uc_number, name").order("uc_number"),
       ]);

@@ -348,7 +348,7 @@ export default function PrintPanel({
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-800 text-white">
-                    {["#", "Reg Number", "Type", "Driver", "Phone", "Shift"].map(
+                    {["#", "Reg Number", "Type", "Status", "Driver", "Phone", "Shift"].map(
                       (h) => (
                         <th key={h} className="p-2 text-left font-medium">
                           {h}
@@ -373,6 +373,15 @@ export default function PrintPanel({
                       </td>
                       <td className="p-2 border border-gray-200 capitalize">
                         {v.vehicle_type?.replace("_", " ")}
+                      </td>
+                      <td className="p-2 border border-gray-200">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          v.status === 'inactive' ? 'bg-red-100 text-red-700' :
+                          v.status === 'maintenance' ? 'bg-amber-100 text-amber-700' :
+                          'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {v.status || 'active'}
+                        </span>
                       </td>
                       <td className="p-2 border border-gray-200">
                         {v.driver_name || "—"}

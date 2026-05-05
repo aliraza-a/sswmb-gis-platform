@@ -31,6 +31,12 @@ const typeColors: Record<string, string> = {
   compactor: "border-amber-500/40 text-amber-400",
 };
 
+const statusColors: Record<string, string> = {
+  active: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10",
+  inactive: "border-red-500/40 text-red-400 bg-red-500/10",
+  maintenance: "border-amber-500/40 text-amber-400 bg-amber-500/10",
+};
+
 const emptyForm = {
   uc_id: "",
   reg_number: "",
@@ -42,6 +48,7 @@ const emptyForm = {
   helper_name: "",
   helper_cnic: "",
   shift: "",
+  status: "active",
   boundary_geojson: null as any,
 };
 
@@ -55,6 +62,7 @@ export default function VehiclesTab() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [filterUc, setFilterUc] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   const fetchAll = async () => {
     setLoading(true);
@@ -99,6 +107,7 @@ export default function VehiclesTab() {
       helper_name: v.helper_name || "",
       helper_cnic: v.helper_cnic || "",
       shift: v.shift || "",
+      status: v.status || "active",
       boundary_geojson: null,
     });
     setOpen(true);
@@ -131,6 +140,7 @@ export default function VehiclesTab() {
       helper_name: form.helper_name || null,
       helper_cnic: form.helper_cnic || null,
       shift: form.shift || null,
+      status: form.status || "active",
     };
 
     let vehicleId = editing?.id;
@@ -175,10 +185,11 @@ export default function VehiclesTab() {
   const f = (key: string, val: any) =>
     setForm((p) => ({ ...p, [key]: val }));
 
-  const filtered =
-    filterUc === "all"
-      ? vehicles
-      : vehicles.filter((v) => v.uc_id === filterUc);
+  const filtered = vehicles.filter((v) => {
+    if (filterUc !== "all" && v.uc_id !== filterUc) return false;
+    if (filterStatus !== "all" && v.status !== filterStatus) return false;
+    return true;
+  });
 
   return (
     <div>
@@ -274,6 +285,22 @@ export default function VehiclesTab() {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(v) => f("status", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button className="w-full mt-4" onClick={save} disabled={saving}>
                   {saving ? "Saving..." : editing ? "Update Vehicle" : "Add Vehicle"}
                 </Button>
@@ -305,7 +332,7 @@ export default function VehiclesTab() {
       </div>
 
       {/* Filter */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <Label className="text-sm text-muted-foreground">Filter by UC:</Label>
         <Select value={filterUc} onValueChange={setFilterUc}>
           <SelectTrigger className="w-48">
@@ -318,6 +345,18 @@ export default function VehiclesTab() {
                 UC-{u.uc_number} — {u.name}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Label className="text-sm text-muted-foreground">Status:</Label>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="maintenance">Maintenance</SelectItem>
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">
@@ -334,9 +373,9 @@ export default function VehiclesTab() {
                 "Reg Number",
                 "UC",
                 "Type",
+                "Status",
                 "Driver",
                 "Phone",
-                "CNIC",
                 "Shift",
                 "",
               ].map((h) => (
@@ -382,15 +421,21 @@ export default function VehiclesTab() {
                       {v.vehicle_type?.replace("_", " ")}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${statusColors[v.status] || statusColors.active}`}
+                    >
+                      {v.status || "active"}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3">{v.driver_name || "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {v.driver_phone || "—"}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                    {v.driver_cnic || "—"}
-                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {v.shift || "—"}
+
                   </td>
                   <td className="px-4 py-3">
                     <Button

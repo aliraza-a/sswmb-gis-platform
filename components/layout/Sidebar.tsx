@@ -53,7 +53,7 @@ export default function Sidebar() {
       if (ucData) {
         const { data: vehicleData } = await supabase
           .from("vehicle")
-          .select("id, uc_id, reg_number, area_name, vehicle_type");
+          .select("id, uc_id, reg_number, area_name, vehicle_type, status");
 
         const ucsWithVehicles = ucData.map(uc => ({
           ...uc,
@@ -252,6 +252,13 @@ export default function Sidebar() {
                                       {uc.vehicles.length > 0 ? (
                                         uc.vehicles.map(v => {
                                           const isAreaActive = currentVehicleId === v.id;
+                                          const isInactive = v.status === 'inactive';
+                                          const isMaintenance = v.status === 'maintenance';
+                                          const statusDot = isInactive
+                                            ? "bg-red-400"
+                                            : isMaintenance
+                                              ? "bg-amber-400"
+                                              : "bg-emerald-400";
                                           return (
                                             <button
                                               key={v.id}
@@ -260,7 +267,7 @@ export default function Sidebar() {
                                                 isAreaActive 
                                                   ? "bg-blue-500/5 border-l-2 border-blue-500 shadow-sm" 
                                                   : "hover:bg-accent/30"
-                                              }`}
+                                              } ${isInactive ? "opacity-40" : ""}`}
                                             >
                                               <div className={`text-[11px] font-medium transition-colors ${
                                                 isAreaActive ? "text-blue-500 font-bold" : "text-foreground/70 group-hover:text-foreground"
@@ -268,8 +275,10 @@ export default function Sidebar() {
                                                 {v.area_name || "General Area"}
                                               </div>
                                               <div className="text-[9px] text-muted-foreground/60 font-mono flex items-center gap-1.5">
-                                                <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                                                <span className={`w-1 h-1 rounded-full ${statusDot}`} />
                                                 {v.reg_number}
+                                                {isInactive && <span className="text-red-400/80 ml-1">· inactive</span>}
+                                                {isMaintenance && <span className="text-amber-400/80 ml-1">· maintenance</span>}
                                               </div>
                                             </button>
                                           );

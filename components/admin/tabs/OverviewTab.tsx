@@ -28,7 +28,7 @@ export default function OverviewTab() {
         { data: logs }
       ] = await Promise.all([
         supabase.from("uc").select("status"),
-        supabase.from("vehicle").select("id"),
+        supabase.from("vehicle").select("id, status"),
         supabase.from("bin").select("id"),
         supabase.from("uc_boundary").select("is_draft"),
         supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(5)
@@ -38,7 +38,7 @@ export default function OverviewTab() {
         totalUcs: ucs?.length || 0,
         completeUcs: ucs?.filter(u => u.status === 'complete').length || 0,
         totalVehicles: vehicles?.length || 0,
-        activeVehicles: vehicles?.length || 0, // Placeholder for real-time status
+        activeVehicles: vehicles?.filter(v => v.status === 'active' || !v.status).length || 0,
         totalBins: bins?.length || 0,
         draftBoundaries: boundaries?.filter(b => b.is_draft).length || 0
       });
@@ -70,8 +70,8 @@ export default function OverviewTab() {
         />
         <MetricCard 
           title="Active Fleet" 
-          value={stats.totalVehicles}
-          subtitle="Vehicles in rotation"
+          value={`${stats.activeVehicles}/${stats.totalVehicles}`}
+          subtitle="Active vehicles in rotation"
           icon={Truck}
           color="text-emerald-500"
         />

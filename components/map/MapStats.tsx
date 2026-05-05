@@ -6,6 +6,7 @@ import { Truck, MapPin, Building, Layers } from "lucide-react";
 interface Props {
   ucName: string;
   vehicleCount: number;
+  activeVehicleCount: number;
   compactorCount: number;
   zone: string;
   status: string;
@@ -20,6 +21,7 @@ const statusStyles: Record<string, string> = {
 export default function MapStats({
   ucName,
   vehicleCount,
+  activeVehicleCount,
   compactorCount,
   zone,
   status,
@@ -52,8 +54,8 @@ export default function MapStats({
       <div className="bg-card/90 backdrop-blur-md border border-border rounded-2xl px-4 py-3 shadow-xl flex items-center gap-4">
         <div className="flex items-center gap-2">
           <Truck className="w-3.5 h-3.5 text-purple-400" />
-          <span className="text-xs font-semibold">{vehicleCount}</span>
-          <span className="text-xs text-muted-foreground">vehicles</span>
+          <span className="text-xs font-semibold">{activeVehicleCount}/{vehicleCount}</span>
+          <span className="text-xs text-muted-foreground">active</span>
         </div>
         <div className="w-px h-4 bg-border" />
         <div className="flex items-center gap-2">
