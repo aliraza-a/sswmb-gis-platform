@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, Truck, Route, MapPin, Layers, Search, Command, LayoutDashboard } from "lucide-react";
+import { Building2, Truck, Route, MapPin, Layers, Search, Command, LayoutDashboard, Clock } from "lucide-react";
 import OverviewTab from "./tabs/OverviewTab";
 import UCTab from "./tabs/UCTab";
 import VehiclesTab from "./tabs/VehiclesTab";
 import RoutesTab from "./tabs/RoutesTab";
 import GTSTab from "./tabs/GTSTab";
 import BinsTab from "./tabs/BinsTab";
+import ShiftsTab from "./tabs/ShiftsTab";
 import CommandPalette from "./CommandPalette";
 import { supabase } from "@/lib/supabase";
 
@@ -18,6 +19,7 @@ const tabs = [
   { value: "routes", label: "Routes", icon: Route },
   { value: "gts", label: "Compactors", icon: Layers },
   { value: "bins", label: "Bins", icon: MapPin },
+  { value: "shifts", label: "Fleet Monitoring", icon: Clock },
 ];
 
 export default function AdminPanel() {
@@ -52,6 +54,7 @@ export default function AdminPanel() {
         if (e.key === "3") setActiveTab("routes");
         if (e.key === "4") setActiveTab("gts");
         if (e.key === "5") setActiveTab("bins");
+        if (e.key === "6") setActiveTab("shifts");
       }
     };
 
@@ -139,7 +142,7 @@ export default function AdminPanel() {
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
             <div className="text-[10px] text-blue-500 font-bold uppercase mb-1">Shortcut Tip</div>
             <p className="text-[10px] text-muted-foreground leading-tight">
-              Press <span className="font-bold text-foreground">1-5</span> to jump between tabs instantly.
+              Press <span className="font-bold text-foreground">1-6</span> to jump between tabs instantly.
             </p>
           </div>
           <a
@@ -168,6 +171,7 @@ export default function AdminPanel() {
             {activeTab === "routes" && <RoutesTab />}
             {activeTab === "gts" && <GTSTab />}
             {activeTab === "bins" && <BinsTab />}
+            {activeTab === "shifts" && <ShiftsTab />}
           </motion.div>
         </AnimatePresence>
       </main>
